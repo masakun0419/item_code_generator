@@ -36,10 +36,27 @@
       <div class="row">
         <button id="btnGenerate" type="button">生成</button>
         <button id="btnCopy" type="button">コピー</button>
+        <button id="btnShareUrl" type="button">共有URL作成</button>
+      </div>
+      <div class="row">
+        <input id="presetMemo" type="text" placeholder="履歴メモ（任意）">
+        <button id="btnSaveHistory" type="button">履歴に保存</button>
       </div>
       <textarea id="commandOutput" rows="4" readonly></textarea>
     </section>
+
+    <section class="panel">
+      <h2>4) 履歴 / 共有</h2>
+      <div class="row">
+        <button id="btnExportHistory" type="button">履歴JSON出力</button>
+        <button id="btnImportHistory" type="button">履歴JSON取込</button>
+        <button id="btnClearHistory" type="button">履歴全削除</button>
+      </div>
+      <textarea id="historyJson" rows="5" placeholder="履歴JSONをここに貼り付けて「履歴JSON取込」"></textarea>
+      <div id="historyList"></div>
+    </section>
   </main>
+  <div id="toast" class="toast"></div>
 
   <template id="opRowTemplate">
     <div class="opRow">
