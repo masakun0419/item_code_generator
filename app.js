@@ -47,6 +47,59 @@
     }, 1400);
   }
 
+  function sanitizeHistoryEntry(entry) {
+    if (!entry || typeof entry !== "object") return null;
+    const itemId = Number(entry.itemId);
+    if (!Number.isFinite(itemId)) return null;
+    const ops = Array.isArray(entry.ops)
+      ? entry.ops
+          .map((op) => ({
+            code: Number(op && op.code),
+            v1: Number(op && op.v1),
+            v2: Number(op && op.v2),
+          }))
+          .filter((op) => Number.isFinite(op.code) && Number.isFinite(op.v1) && Number.isFinite(op.v2))
+          .slice(0, 3)
+      : [];
+    const createdAt = entry.createdAt ? new Date(entry.createdAt).toISOString() : new Date().toISOString();
+    return {
+      version: 1,
+      itemId,
+      ops,
+      memo: String(entry.memo || ""),
+      command: String(entry.command || ""),
+      createdAt,
+    };
+  }
+
+  function normalizeHistoryArray(arr) {
+    if (!Array.isArray(arr)) return [];
+    return arr.map(sanitizeHistoryEntry).filter(Boolean).slice(0, 100);
+  }
+
+  async function copyTextWithFallback(text) {
+    if (!text) return false;
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch (e) {
+      try {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        const ok = document.execCommand("copy");
+        document.body.removeChild(ta);
+        return ok;
+      } catch (e2) {
+        return false;
+      }
+    }
+  }
+
   function normalizeItemJson(raw) {
     const list = Array.isArray(raw) ? raw : (raw["アイテム一覧"] || []);
     return list
@@ -296,11 +349,11 @@
   async function copyCommand() {
     const text = el.commandOutput.value.trim();
     if (!text) return;
-    try {
-      await navigator.clipboard.writeText(text);
+    const ok = await copyTextWithFallback(text);
+    if (ok) {
       setStatus("");
       showToast("コピーしました");
-    } catch (e) {
+    } else {
       setStatus("コピーに失敗しました");
       showToast("コピーに失敗しました");
     }
@@ -377,8 +430,8 @@
 
   function loadHistory() {
     try {
-      state.history = JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]");
-      if (!Array.isArray(state.history)) state.history = [];
+      const parsed = JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]");
+      state.history = normalizeHistoryArray(parsed);
     } catch (e) {
       state.history = [];
     }
@@ -386,23 +439,25 @@
   }
 
   function saveHistoryStorage() {
-    localStorage.setItem(HISTORY_KEY, JSON.stringify(state.history));
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(normalizeHistoryArray(state.history)));
   }
 
   function renderHistory() {
     el.historyList.innerHTML = "";
     state.history.forEach((h, idx) => {
+      const safe = sanitizeHistoryEntry(h);
+      if (!safe) return;
       const wrap = document.createElement("div");
       wrap.className = "historyItem";
 
       const title = document.createElement("div");
       title.className = "historyTitle";
-      title.textContent = `${h.memo || "メモなし"} | item=${h.itemId} | ${new Date(h.createdAt).toLocaleString()}`;
+      title.textContent = `${safe.memo || "メモなし"} | item=${safe.itemId} | ${new Date(safe.createdAt).toLocaleString()}`;
       wrap.appendChild(title);
 
       const cmd = document.createElement("div");
       cmd.className = "historyCmd";
-      cmd.textContent = h.command || "";
+      cmd.textContent = safe.command || "";
       wrap.appendChild(cmd);
 
       const row = document.createElement("div");
@@ -410,23 +465,23 @@
 
       const btnLoad = document.createElement("button");
       btnLoad.textContent = "復元";
-      btnLoad.addEventListener("click", () => applyPreset(h));
+      btnLoad.addEventListener("click", () => applyPreset(safe));
       row.appendChild(btnLoad);
 
       const btnCopy = document.createElement("button");
       btnCopy.textContent = "コマンドコピー";
       btnCopy.addEventListener("click", async () => {
-        await navigator.clipboard.writeText(h.command || "");
-        showToast("コピーしました");
+        const ok = await copyTextWithFallback(safe.command || "");
+        showToast(ok ? "コピーしました" : "コピーに失敗しました");
       });
       row.appendChild(btnCopy);
 
       const btnShare = document.createElement("button");
       btnShare.textContent = "共有URL";
       btnShare.addEventListener("click", async () => {
-        const url = createShareUrl(h);
-        await navigator.clipboard.writeText(url);
-        showToast("共有URLをコピーしました");
+        const url = createShareUrl(safe);
+        const ok = await copyTextWithFallback(url);
+        showToast(ok ? "共有URLをコピーしました" : "共有URLのコピーに失敗しました");
       });
       row.appendChild(btnShare);
 
@@ -473,7 +528,12 @@
   function saveCurrentToHistory() {
     const preset = getCurrentPreset();
     if (!preset) return;
-    state.history.unshift(preset);
+    const safe = sanitizeHistoryEntry(preset);
+    if (!safe) {
+      showToast("履歴保存に失敗しました");
+      return;
+    }
+    state.history.unshift(safe);
     if (state.history.length > 100) state.history.length = 100;
     saveHistoryStorage();
     renderHistory();
@@ -489,7 +549,8 @@
     try {
       const arr = JSON.parse(el.historyJson.value || "[]");
       if (!Array.isArray(arr)) throw new Error("invalid");
-      state.history = arr.concat(state.history).slice(0, 100);
+      const imported = normalizeHistoryArray(arr);
+      state.history = normalizeHistoryArray(imported.concat(state.history));
       saveHistoryStorage();
       renderHistory();
       setStatus("");
@@ -510,8 +571,8 @@
     if (!preset) return;
     const url = createShareUrl(preset);
     el.commandOutput.value = url;
-    await navigator.clipboard.writeText(url);
-    showToast("共有URLをコピーしました");
+    const ok = await copyTextWithFallback(url);
+    showToast(ok ? "共有URLをコピーしました" : "共有URLのコピーに失敗しました");
   });
   el.btnSaveHistory.addEventListener("click", saveCurrentToHistory);
   el.btnExportHistory.addEventListener("click", exportHistoryJson);
