@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>@item コマンド生成ツール</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <main class="container">
+    <h1>@item コマンド生成ツール</h1>
+
+    <section class="panel">
+      <h2>1) アイテム選択</h2>
+      <div class="row">
+        <input id="itemSearch" type="text" placeholder="ID / アイテム名 / 種類 で検索">
+      </div>
+      <div class="row">
+        <select id="itemSelect" size="10"></select>
+      </div>
+      <div class="row">
+        <strong>選択中アイテムID:</strong>&nbsp;<span id="selectedItemId">-</span>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>2) OP 選択</h2>
+      <div class="row">
+        <button id="btnAddOp" type="button">OP行を追加</button>
+      </div>
+      <div id="opRows"></div>
+    </section>
+
+    <section class="panel">
+      <h2>3) コマンド生成</h2>
+      <div class="row">
+        <button id="btnGenerate" type="button">生成</button>
+        <button id="btnCopy" type="button">コピー</button>
+      </div>
+      <textarea id="commandOutput" rows="4" readonly></textarea>
+    </section>
+  </main>
+
+  <template id="opRowTemplate">
+    <div class="opRow">
+      <input class="opSearch" type="text" placeholder="識別コード / OP名 で検索">
+      <select class="opSelect" size="6"></select>
+      <label>v1
+        <select class="v1Select"></select>
+      </label>
+      <label>v2
+        <select class="v2Select"></select>
+      </label>
+      <button class="btnRemoveOp" type="button">削除</button>
+      <div class="opMeta"></div>
+    </div>
+  </template>
+
+  <script src="./app.js"></script>
+</body>
+</html>
