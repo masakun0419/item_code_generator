@@ -137,24 +137,39 @@
   }
 
   async function autoLoad() {
-      setStatus("");
+    setStatus("読込中...");
+    const errors = [];
+
     try {
-      const [itemsRaw, prefixRaw] = await Promise.all([
-        loadJsonViaFetch("./all_items.json"),
-        loadJsonViaFetch("./prefix_map.json"),
-      ]);
+      const itemsRaw = await loadJsonViaFetch("./all_items.json");
       state.items = normalizeItemJson(itemsRaw);
-      state.prefixes = normalizePrefixJson(prefixRaw);
       state.filteredItems = state.items.slice();
       renderItemList();
-      refreshAllOpRows();
-      if (state.pendingPreset) {
-        applyPreset(state.pendingPreset);
-        state.pendingPreset = null;
-      }
-      setStatus("");
     } catch (e) {
-      setStatus("JSON自動読込に失敗しました（手動ファイル選択を使用してください）");
+      errors.push("アイテム一覧");
+    }
+
+    try {
+      const prefixRaw = await loadJsonViaFetch("./prefix_map.json");
+      state.prefixes = normalizePrefixJson(prefixRaw);
+      refreshAllOpRows();
+    } catch (e) {
+      errors.push("プレフィックス一覧");
+    }
+
+    if (state.pendingPreset) {
+      applyPreset(state.pendingPreset);
+      state.pendingPreset = null;
+    }
+
+    if (errors.length === 2) {
+      setStatus("JSON自動読込に失敗しました");
+    } else if (errors.length === 1) {
+      setStatus(
+        `${errors[0]}の読込に失敗しました（アイテム ${state.items.length}件 / プレフィックス ${state.prefixes.length}件）`
+      );
+    } else {
+      setStatus(`読込完了: アイテム ${state.items.length}件 / プレフィックス ${state.prefixes.length}件`);
     }
   }
 
@@ -191,12 +206,22 @@
     throw lastError || new Error("json decode failed");
   }
 
+  function stripTrailingCommas(text) {
+    let prev;
+    let result = text;
+    do {
+      prev = result;
+      result = result.replace(/,(\s*[}\]])/g, "$1");
+    } while (result !== prev);
+    return result;
+  }
+
   function parseJsonWithCleanup(text) {
     try {
       return JSON.parse(text);
     } catch (e) {
-      // Fallback for malformed JSON containing raw control characters in strings.
-      const cleaned = text.replace(/[\u0000-\u001F]/g, "");
+      // Fallback for malformed JSON (control chars, trailing commas).
+      const cleaned = stripTrailingCommas(text.replace(/[\u0000-\u001F]/g, ""));
       return JSON.parse(cleaned);
     }
   }
